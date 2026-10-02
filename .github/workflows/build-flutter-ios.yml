@@ -1,0 +1,55 @@
+name: 打包Flutter-iOS
+on: [workflow_dispatch, push]
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+
+      - name: 环境信息
+        run: |
+          flutter --version
+          xcodebuild -version
+          uname -a
+
+      - name: 解压源码
+        run: |
+          unzip -q -o juyan-flutter.zip
+          ls -la
+          ls -la juyan-app
+
+      - name: 拉依赖
+        working-directory: juyan-app
+        run: flutter pub get
+
+      - name: 静态检查
+        working-directory: juyan-app
+        run: flutter analyze || true
+
+      - name: 编译 iOS
+        working-directory: juyan-app
+        run: flutter build ios --release --no-codesign 2>&1 | tail -80
+
+      - name: 打成 IPA
+        working-directory: juyan-app
+        run: |
+          APP=$(find build/ios/iphoneos -maxdepth 1 -name "*.app" | head -1)
+          echo "APP=$APP"
+          if [ -z "$APP" ]; then echo "NO_APP_BUILT"; find build -maxdepth 4 -type d | head -40; exit 1; fi
+          rm -rf Payload && mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry JuYan.ipa Payload
+          ls -lh JuYan.ipa
+          unzip -l JuYan.ipa | head -20
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JuYan-ipa
+          path: juyan-app/JuYan.ipa

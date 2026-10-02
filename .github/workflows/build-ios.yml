@@ -48,7 +48,7 @@ jobs:
           set -o pipefail
           xcodebuild \
             -project JuYan.xcodeproj \
-            -target JuYan \
+            -scheme JuYan \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \

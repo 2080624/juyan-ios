@@ -37,9 +37,14 @@ jobs:
       - name: 生成 Xcode 工程
         working-directory: ${{ steps.locate.outputs.dir }}
         run: |
-          ls -la
           xcodegen generate
-          ls -la
+          PBX=JuYan.xcodeproj/project.pbxproj
+          if [ -f "$PBX" ]; then
+            sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' "$PBX" || true
+            sed -i '' 's/objectVersion = 70;/objectVersion = 56;/' "$PBX" || true
+            grep -n "objectVersion" "$PBX" || true
+          fi
+          xcodebuild -version
           xcodebuild -list -project JuYan.xcodeproj
 
       - name: 编译（不签名）
@@ -52,7 +57,7 @@ jobs:
             -sdk iphoneos \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tail -80
 
       - name: 打成 IPA
         working-directory: ${{ steps.locate.outputs.dir }}

@@ -1,0 +1,68 @@
+name: 打包iOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 找到工程目录
+        id: locate
+        run: |
+          if [ -f project.yml ]; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          elif [ -f juyan-ios/project.yml ]; then
+            echo "dir=juyan-ios" >> "$GITHUB_OUTPUT"
+          else
+            echo "没有找到 project.yml"; exit 1
+          fi
+
+      - name: 生成 Xcode 工程
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          cp -f Info.plist /tmp/Info.plist.keep 2>/dev/null || true
+          cp -f JuYan/Info.plist /tmp/Info.plist.keep 2>/dev/null || true
+          xcodegen generate
+          cp -f /tmp/Info.plist.keep Info.plist 2>/dev/null || true
+          cp -f /tmp/Info.plist.keep JuYan/Info.plist 2>/dev/null || true
+          echo "工程生成完毕"
+
+      - name: 编译（不签名）
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          xcodebuild \
+            -project JuYan.xcodeproj \
+            -target JuYan \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -60
+
+      - name: 打成 IPA
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          APP=$(find build -type d -name "*.app" | head -1)
+          echo "找到 App：$APP"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry JuYan-unsigned.ipa Payload
+          ls -lh JuYan-unsigned.ipa
+
+      - name: 上传成品
+        uses: actions/upload-artifact@v4
+        with:
+          name: JuYan-unsigned-ipa
+          path: ${{ steps.locate.outputs.dir }}/JuYan-unsigned.ipa
+          if-no-files-found: error

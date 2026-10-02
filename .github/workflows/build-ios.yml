@@ -9,12 +9,19 @@ jobs:
   build:
     runs-on: macos-14
     timeout-minutes: 40
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
     steps:
       - name: 拉取代码
         uses: actions/checkout@v4
 
       - name: 安装 XcodeGen
-        run: brew install xcodegen
+        run: |
+          which xcodegen || true
+          brew install xcodegen || brew upgrade xcodegen || true
+          which xcodegen
+          xcodegen --version
 
       - name: 找到工程目录
         id: locate
@@ -30,12 +37,10 @@ jobs:
       - name: 生成 Xcode 工程
         working-directory: ${{ steps.locate.outputs.dir }}
         run: |
-          cp -f Info.plist /tmp/Info.plist.keep 2>/dev/null || true
-          cp -f JuYan/Info.plist /tmp/Info.plist.keep 2>/dev/null || true
+          ls -la
           xcodegen generate
-          cp -f /tmp/Info.plist.keep Info.plist 2>/dev/null || true
-          cp -f /tmp/Info.plist.keep JuYan/Info.plist 2>/dev/null || true
-          echo "工程生成完毕"
+          ls -la
+          xcodebuild -list -project JuYan.xcodeproj
 
       - name: 编译（不签名）
         working-directory: ${{ steps.locate.outputs.dir }}
@@ -47,7 +52,7 @@ jobs:
             -sdk iphoneos \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build | tail -60
+            build
 
       - name: 打成 IPA
         working-directory: ${{ steps.locate.outputs.dir }}
